@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/josephr26/pn532/shared/schemas/card_profile.schema.json",
+  "title": "CardProfile",
+  "description": "Unified record for a single physical card capturing NFC, magstripe, and optional EMV data. Produced and consumed by both the ESP32 handheld firmware and the host CLI.",
+  "type": "object",
+  "required": ["id", "captured_at", "schema_version"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "id": {
+      "type": "string",
+      "description": "Stable profile identifier, UUID v4 preferred.",
+      "pattern": "^[0-9a-fA-F-]{8,}$"
+    },
+    "captured_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of first capture."
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "label": {
+      "type": "string",
+      "description": "Human-readable label (e.g. 'hotel room 402 2024-06')."
+    },
+    "notes": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["firmware", "host", "import"],
+      "description": "Where this record originated."
+    },
+    "nfc": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "technology": {
+          "type": "string",
+          "enum": ["iso14443a", "iso14443b", "felica", "unknown"]
+        },
+        "uid": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{8,20}$",
+          "description": "Hex UID, no separators, lowercase."
+        },
+        "atqa": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{4}$"
+        },
+        "sak": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{2}$"
+        },
+        "ats": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]*$"
+        },
+        "tag_type": {
+          "type": "string",
+          "enum": [
+            "mifare_classic_1k",
+            "mifare_classic_4k",
+            "mifare_mini",
+            "mifare_ultralight",
+            "mifare_ultralight_c",
+            "mifare_ultralight_ev1",
+            "ntag213",
+            "ntag215",
+            "ntag216",
+            "mifare_plus",
+            "desfire_ev1",
+            "desfire_ev2",
+            "desfire_ev3",
+            "felica_lite",
+            "felica_standard",
+            "unknown"
+          ]
+        },
+        "sectors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["index"],
+            "additionalProperties": false,
+            "properties": {
+              "index": {"type": "integer", "minimum": 0, "maximum": 39},
+              "key_a": {"type": "string", "pattern": "^[0-9a-fA-F]{12}$"},
+              "key_b": {"type": "string", "pattern": "^[0-9a-fA-F]{12}$"},
+              "key_source": {
+                "type": "string",
+                "enum": ["default", "dictionary", "mfcuk", "mfoc", "hardnested", "known", "unknown"]
+              },
+              "access_bits": {"type": "string", "pattern": "^[0-9a-fA-F]{8}$"},
+              "blocks": {
+                "type": "array",
+                "items": {"type": "string", "pattern": "^[0-9a-fA-F]{32}$"}
+              }
+            }
+          }
+        },
+        "pages": {
+          "type": "array",
+          "description": "MIFARE Ultralight / NTAG page dumps (4 bytes per page).",
+          "items": {"type": "string", "pattern": "^[0-9a-fA-F]{8}$"}
+        },
+        "ndef": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "tnf": {"type": "integer", "minimum": 0, "maximum": 7},
+              "type": {"type": "string"},
+              "id": {"type": "string"},
+              "payload_hex": {"type": "string", "pattern": "^[0-9a-fA-F]*$"},
+              "payload_text": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "magstripe": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "coercivity": {"type": "string", "enum": ["hi", "lo", "unknown"]},
+        "track1": {"type": "string"},
+        "track2": {"type": "string"},
+        "track3": {"type": "string"},
+        "track1_raw_hex": {"type": "string", "pattern": "^[0-9a-fA-F]*$"},
+        "track2_raw_hex": {"type": "string", "pattern": "^[0-9a-fA-F]*$"},
+        "track3_raw_hex": {"type": "string", "pattern": "^[0-9a-fA-F]*$"},
+        "track2_lrc_ok": {"type": "boolean"},
+        "read_device": {"type": "string"}
+      }
+    },
+    "emv": {
+      "type": "object",
+      "description": "Contactless EMV track-equivalent data. Populated only with explicit authorised-testing flag.",
+      "additionalProperties": false,
+      "properties": {
+        "pse_aids": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[0-9a-fA-F]+$"}
+        },
+        "selected_aid": {"type": "string", "pattern": "^[0-9a-fA-F]+$"},
+        "track2_equivalent": {"type": "string"},
+        "pan_masked": {"type": "string"},
+        "cardholder_name": {"type": "string"},
+        "expiry_yymm": {"type": "string", "pattern": "^[0-9]{4}$"}
+      }
+    },
+    "attacks": {
+      "type": "array",
+      "description": "Log of attack/recovery operations performed against this card.",
+      "items": {
+        "type": "object",
+        "required": ["tool", "started_at"],
+        "additionalProperties": false,
+        "properties": {
+          "tool": {"type": "string", "enum": ["mfcuk", "mfoc", "mfoc-hardnested", "dictionary"]},
+          "started_at": {"type": "string", "format": "date-time"},
+          "finished_at": {"type": "string", "format": "date-time"},
+          "duration_seconds": {"type": "number"},
+          "keys_recovered": {"type": "integer"},
+          "exit_code": {"type": "integer"},
+          "log_path": {"type": "string"}
+        }
+      }
+    }
+  }
+}

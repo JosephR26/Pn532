@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0.0",
+  "id": "7b44a1f0-4d2e-4b36-8d4a-3f9a2c1b5e70",
+  "captured_at": "2026-04-21T10:15:32Z",
+  "updated_at": "2026-04-21T10:17:05Z",
+  "label": "test-card-mifare-1k-01",
+  "notes": "Example profile — not a real credential.",
+  "source": "firmware",
+  "nfc": {
+    "technology": "iso14443a",
+    "uid": "deadbeef",
+    "atqa": "0004",
+    "sak": "08",
+    "tag_type": "mifare_classic_1k",
+    "sectors": [
+      {
+        "index": 0,
+        "key_a": "ffffffffffff",
+        "key_source": "default",
+        "blocks": [
+          "deadbeef220804006263646566676869",
+          "00000000000000000000000000000000",
+          "00000000000000000000000000000000",
+          "ffffffffffffff078069ffffffffffff"
+        ]
+      }
+    ]
+  },
+  "magstripe": {
+    "coercivity": "hi",
+    "track2": ";1234567890123456=25121010000000000000?",
+    "track2_lrc_ok": true,
+    "read_device": "MSR605X"
+  }
+}
