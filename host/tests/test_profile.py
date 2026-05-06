@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from nfcmsr.profile import CardProfile, Iso7816Data, MagstripeData, NfcData, diff, validate
 
 
@@ -81,6 +83,42 @@ def test_iso7816_rejects_bad_atr() -> None:
     profile.iso7816 = Iso7816Data(atr="not-hex!")
     errors = validate(profile)
     assert any("atr" in e.lower() for e in errors)
+
+
+def test_load_schema_returns_expected_top_level() -> None:
+    from nfcmsr.profile import load_schema
+
+    schema = load_schema()
+    assert schema["title"] == "CardProfile"
+    assert "nfc" in schema["properties"]
+    assert "magstripe" in schema["properties"]
+    assert "iso7816" in schema["properties"]
+
+
+def test_load_schema_missing_resource_raises_schema_load_error(monkeypatch) -> None:
+    import nfcmsr.profile as profile_mod
+    from nfcmsr.profile import SchemaLoadError
+
+    monkeypatch.setattr(profile_mod, "SCHEMA_RESOURCE", "schemas/does_not_exist.json")
+    with pytest.raises(SchemaLoadError, match="packaging problem"):
+        profile_mod.load_schema()
+
+
+def test_load_schema_corrupt_json_raises_schema_load_error(monkeypatch) -> None:
+    import nfcmsr.profile as profile_mod
+    from nfcmsr.profile import SchemaLoadError
+
+    class _FakeResource:
+        def read_text(self, encoding: str = "utf-8") -> str:
+            return "{ this is not json"
+
+    class _FakeFiles:
+        def joinpath(self, _name: str) -> _FakeResource:
+            return _FakeResource()
+
+    monkeypatch.setattr(profile_mod, "files", lambda _pkg: _FakeFiles())
+    with pytest.raises(SchemaLoadError, match="not valid JSON"):
+        profile_mod.load_schema()
 
 
 def test_diff_detects_sector_change() -> None:
