@@ -12,7 +12,7 @@ Three legs:
 2. **Laptop magstripe leg** — MSR605X USB reader/writer, ISO 7811 Tracks 1/2/3, hi-co + lo-co.
 3. **Laptop contact smartcard leg** — USB CCID reader (e.g. STW-027), driven via PC/SC. Covers ISO 7816 contact: contact EMV, PIV, OpenPGP, GIDS, JavaCard, SIM (with adapter), and the contact side of dual-interface cards.
 
-The Python CLI `nfcmsr` orchestrates all three. Integration seam: a single `shared/schemas/card_profile.schema.json` record holds `nfc`, `magstripe`, `iso7816`, and optional `emv` blocks for one physical card. Both firmware and host produce/consume this JSON.
+The Python CLI `nfcmsr` orchestrates all three. Integration seam: a single `card_profile` JSON record (schema bundled inside the host package at `host/nfcmsr/schemas/card_profile.schema.json` and shipped as package data) holds `nfc`, `magstripe`, `iso7816`, and optional `emv` blocks for one physical card. Both firmware and host produce/consume this JSON.
 
 **Host OS:** Windows 11 is the primary target (per the user's setup). Linux works equally well; macOS untested. Driver/setup details for Windows live in `docs/windows.md`.
 
@@ -36,7 +36,7 @@ The Python CLI `nfcmsr` orchestrates all three. Integration seam: a single `shar
 | External BOOT               | → GPIO0       | to GND; hold + tap RESET to enter flash mode                |
 | Status LED                  | 2             | on-board; strap pin — drive only after boot                 |
 
-Avoid using GPIO 0/2/5/12/15 for peripherals — they are boot-strap pins.
+Avoid using GPIO 0/2/5/12/15 for peripherals — they are bootstrap pins.
 
 ## Toolchain
 

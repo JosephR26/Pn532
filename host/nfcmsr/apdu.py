@@ -59,6 +59,35 @@ class CommandAPDU:
             out.append(self.le)
         return bytes(out)
 
+    @classmethod
+    def from_bytes(cls, raw: bytes) -> CommandAPDU:
+        """Parse a short-form ISO 7816-4 command APDU.
+
+        Recognises Case 1 (header only), Case 2 (header + Le), Case 3
+        (header + Lc + data), and Case 4 (header + Lc + data + Le).
+        Extended-length encodings are not supported.
+        """
+        if len(raw) < 4:
+            raise ValueError("APDU must be at least 4 bytes (CLA INS P1 P2)")
+        cla, ins, p1, p2 = raw[0], raw[1], raw[2], raw[3]
+        body = raw[4:]
+        if not body:
+            return cls(cla=cla, ins=ins, p1=p1, p2=p2)
+        if len(body) == 1:
+            return cls(cla=cla, ins=ins, p1=p1, p2=p2, le=body[0])
+        lc = body[0]
+        if lc == 0:
+            raise ValueError("Lc must be non-zero (extended-length not supported)")
+        if 1 + lc > len(body):
+            raise ValueError(f"Lc={lc} exceeds remaining {len(body) - 1} bytes")
+        data = body[1 : 1 + lc]
+        remainder = body[1 + lc :]
+        if not remainder:
+            return cls(cla=cla, ins=ins, p1=p1, p2=p2, data=data)
+        if len(remainder) == 1:
+            return cls(cla=cla, ins=ins, p1=p1, p2=p2, data=data, le=remainder[0])
+        raise ValueError(f"trailing {len(remainder)} bytes after data; expected 0 or 1 (Le)")
+
 
 @dataclass
 class ResponseAPDU:

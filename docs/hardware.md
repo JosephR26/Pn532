@@ -50,7 +50,7 @@ SEL1 = 0
 | External BOOT button        | → GPIO0       | other leg to GND                                            |
 | Status LED                  | GPIO2         | on-board blue LED; strap pin — drive only after boot        |
 
-## Boot strapping pins — avoid
+## Bootstrapping pins — avoid
 
 Do not use for peripherals: **GPIO0, GPIO2, GPIO5, GPIO12, GPIO15**. Driving these low/high at boot changes the boot mode or SDIO strap voltage. GPIO0 and GPIO2 appear in the pinout above only because they are the official BOOT pin and on-board status LED — both are safe in those roles because the board is already designed around them.
 

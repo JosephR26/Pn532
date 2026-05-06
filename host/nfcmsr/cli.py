@@ -11,7 +11,7 @@ from rich.console import Console
 from rich.table import Table
 
 from . import __version__
-from .apdu import CommandAPDU, ResponseAPDU
+from .apdu import CommandAPDU
 from .msr605x import STATUS_OK, TrackData, msr_device, track2_lrc
 from .pn532_serial import FirmwareError, firmware
 from .profile import CardProfile, Iso7816Data, MagstripeData, NfcData, validate
@@ -230,27 +230,17 @@ def smartcard_apdu(hex_apdu: str, reader_index: int) -> None:
         console.print(f"[red]{exc}[/red]")
         sys.exit(1)
 
-    raw = bytes.fromhex(hex_apdu.replace(" ", ""))
-    if len(raw) < 4:
-        console.print("[red]APDU must be at least 4 bytes (CLA INS P1 P2).[/red]")
+    try:
+        raw = bytes.fromhex(hex_apdu.replace(" ", ""))
+    except ValueError as exc:
+        console.print(f"[red]Invalid hex: {exc}[/red]")
         sys.exit(1)
 
-    cla, ins, p1, p2 = raw[0], raw[1], raw[2], raw[3]
-    body = raw[4:]
-    data = b""
-    le: int | None = None
-    if len(body) == 1:
-        le = body[0]
-    elif len(body) >= 2:
-        lc = body[0]
-        if 1 + lc > len(body):
-            console.print("[red]Lc exceeds remaining bytes.[/red]")
-            sys.exit(1)
-        data = body[1 : 1 + lc]
-        if len(body) > 1 + lc:
-            le = body[1 + lc]
-
-    cmd = CommandAPDU(cla=cla, ins=ins, p1=p1, p2=p2, data=data, le=le)
+    try:
+        cmd = CommandAPDU.from_bytes(raw)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        sys.exit(1)
     try:
         with ccid_reader(reader_index=reader_index) as dev:
             resp = dev.transmit(cmd)

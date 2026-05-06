@@ -32,6 +32,9 @@ nfcmsr = "nfcmsr.cli:main"
 where = ["."]
 include = ["nfcmsr*"]
 
+[tool.setuptools.package-data]
+nfcmsr = ["schemas/*.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra -q"
