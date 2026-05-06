@@ -218,19 +218,26 @@ class SchemaLoadError(RuntimeError):
     """Raised when the bundled card-profile schema can't be loaded.
 
     Indicates a packaging or installation problem rather than user error —
-    the schema is shipped as package data inside `nfcmsr/schemas/`.
+    the schema is shipped as package data inside `nfcmsr/schemas/`. Other
+    runtime IO errors (PermissionError, IsADirectoryError, ...) are not
+    wrapped and propagate naturally so they aren't misreported as packaging
+    bugs.
     """
+
+
+_REINSTALL_HINT = (
+    "Try `pip install --force-reinstall nfcmsr` or reinstall from source."
+)
 
 
 def load_schema() -> dict[str, Any]:
     try:
         resource = files("nfcmsr").joinpath(SCHEMA_RESOURCE)
         schema_text = resource.read_text(encoding="utf-8")
-    except (FileNotFoundError, OSError, ModuleNotFoundError) as exc:
+    except (FileNotFoundError, ModuleNotFoundError) as exc:
         raise SchemaLoadError(
-            f"Unable to read bundled card profile schema {SCHEMA_RESOURCE!r}. "
-            "This indicates a packaging problem with nfcmsr — try "
-            "`pip install --force-reinstall nfcmsr` or reinstall from source."
+            f"Bundled card profile schema {SCHEMA_RESOURCE!r} not found — this "
+            f"indicates a packaging problem with nfcmsr. {_REINSTALL_HINT}"
         ) from exc
 
     try:
@@ -238,8 +245,8 @@ def load_schema() -> dict[str, Any]:
     except json.JSONDecodeError as exc:
         raise SchemaLoadError(
             f"Bundled card profile schema {SCHEMA_RESOURCE!r} is not valid JSON "
-            f"(line {exc.lineno}, column {exc.colno}). This indicates a corrupted "
-            "install of nfcmsr — try `pip install --force-reinstall nfcmsr`."
+            f"(line {exc.lineno}, column {exc.colno}) — this indicates a "
+            f"corrupted install. {_REINSTALL_HINT}"
         ) from exc
 
 

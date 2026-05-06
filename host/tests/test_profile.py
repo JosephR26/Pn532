@@ -121,6 +121,23 @@ def test_load_schema_corrupt_json_raises_schema_load_error(monkeypatch) -> None:
         profile_mod.load_schema()
 
 
+def test_load_schema_propagates_permission_error(monkeypatch) -> None:
+    """Non-FileNotFound IO errors must NOT be wrapped as packaging problems."""
+    import nfcmsr.profile as profile_mod
+
+    class _DenyingResource:
+        def read_text(self, encoding: str = "utf-8") -> str:
+            raise PermissionError("simulated permission denial")
+
+    class _FakeFiles:
+        def joinpath(self, _name: str) -> _DenyingResource:
+            return _DenyingResource()
+
+    monkeypatch.setattr(profile_mod, "files", lambda _pkg: _FakeFiles())
+    with pytest.raises(PermissionError, match="simulated permission denial"):
+        profile_mod.load_schema()
+
+
 def test_diff_detects_sector_change() -> None:
     a = CardProfile()
     a.nfc = NfcData(sectors=[{"index": 0, "key_a": "ffffffffffff"}])
