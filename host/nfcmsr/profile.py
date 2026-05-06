@@ -214,9 +214,33 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+class SchemaLoadError(RuntimeError):
+    """Raised when the bundled card-profile schema can't be loaded.
+
+    Indicates a packaging or installation problem rather than user error —
+    the schema is shipped as package data inside `nfcmsr/schemas/`.
+    """
+
+
 def load_schema() -> dict[str, Any]:
-    resource = files("nfcmsr").joinpath(SCHEMA_RESOURCE)
-    return json.loads(resource.read_text(encoding="utf-8"))
+    try:
+        resource = files("nfcmsr").joinpath(SCHEMA_RESOURCE)
+        schema_text = resource.read_text(encoding="utf-8")
+    except (FileNotFoundError, OSError, ModuleNotFoundError) as exc:
+        raise SchemaLoadError(
+            f"Unable to read bundled card profile schema {SCHEMA_RESOURCE!r}. "
+            "This indicates a packaging problem with nfcmsr — try "
+            "`pip install --force-reinstall nfcmsr` or reinstall from source."
+        ) from exc
+
+    try:
+        return json.loads(schema_text)
+    except json.JSONDecodeError as exc:
+        raise SchemaLoadError(
+            f"Bundled card profile schema {SCHEMA_RESOURCE!r} is not valid JSON "
+            f"(line {exc.lineno}, column {exc.colno}). This indicates a corrupted "
+            "install of nfcmsr — try `pip install --force-reinstall nfcmsr`."
+        ) from exc
 
 
 def validate(profile: CardProfile | dict[str, Any]) -> list[str]:

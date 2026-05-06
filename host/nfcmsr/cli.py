@@ -231,7 +231,7 @@ def smartcard_apdu(hex_apdu: str, reader_index: int) -> None:
         sys.exit(1)
 
     try:
-        raw = bytes.fromhex(hex_apdu.replace(" ", ""))
+        raw = bytes.fromhex("".join(hex_apdu.split()))
     except ValueError as exc:
         console.print(f"[red]Invalid hex: {exc}[/red]")
         sys.exit(1)
