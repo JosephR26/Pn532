@@ -4,9 +4,10 @@ the CLI works without `pyscard` / `pcscd` installed.
 
 from __future__ import annotations
 
+import sys
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Iterator
+from typing import Any, Iterator
 
 from .apdu import (
     KNOWN_AIDS,
@@ -26,17 +27,46 @@ class SmartcardError(RuntimeError):
     pass
 
 
-def _import_pyscard():
+@dataclass(frozen=True)
+class _PyScardAPI:
+    readers: Any
+    no_card_exc: type[Exception]
+    conn_exc: type[Exception]
+
+
+def _pcsc_service_hint() -> str:
+    if sys.platform.startswith("linux"):
+        return (
+            "On Linux, ensure pcscd is running: "
+            "`sudo apt install pcscd pcsc-lite && sudo systemctl start pcscd`."
+        )
+    if sys.platform == "win32":
+        return (
+            "On Windows, the built-in Smart Card service (`SCardSvr`) is normally on by default. "
+            "Verify with `Get-Service SCardSvr` in PowerShell."
+        )
+    if sys.platform == "darwin":
+        return "On macOS, the system PC/SC daemon is started on demand; no extra setup is required."
+    return "Ensure your platform's PC/SC service is running."
+
+
+def _import_pyscard() -> _PyScardAPI:
     try:
-        from smartcard.System import readers as _readers  # type: ignore[import-not-found]
-        from smartcard.util import toHexString  # type: ignore[import-not-found]
-        from smartcard.Exceptions import NoCardException, CardConnectionException  # type: ignore[import-not-found]
+        from smartcard.System import readers  # type: ignore[import-not-found]
+        from smartcard.Exceptions import (  # type: ignore[import-not-found]
+            CardConnectionException,
+            NoCardException,
+        )
     except ImportError as exc:
         raise SmartcardError(
-            "pyscard is not installed. Install with `pip install nfcmsr[smartcard]` "
-            "and ensure pcscd is running (sudo apt install pcscd pcsc-lite)."
+            "pyscard is not installed. Install with `pip install nfcmsr[smartcard]`. "
+            + _pcsc_service_hint()
         ) from exc
-    return _readers, toHexString, NoCardException, CardConnectionException
+    return _PyScardAPI(
+        readers=readers,
+        no_card_exc=NoCardException,
+        conn_exc=CardConnectionException,
+    )
 
 
 @dataclass
@@ -88,17 +118,19 @@ class CardSnapshot:
 class CCIDReader:
     def __init__(self, reader_index: int = 0) -> None:
         self._reader_index = reader_index
-        self._readers, self._to_hex, self._no_card, self._conn_err = _import_pyscard()
+        self._sc = _import_pyscard()
         self._connection = None
         self._reader = None
 
     def list_readers(self) -> list[str]:
-        return [str(r) for r in self._readers()]
+        return [str(r) for r in self._sc.readers()]
 
     def open(self) -> str:
-        all_readers = self._readers()
+        all_readers = self._sc.readers()
         if not all_readers:
-            raise SmartcardError("no PC/SC readers found (is pcscd running?)")
+            raise SmartcardError(
+                "no PC/SC readers found. " + _pcsc_service_hint()
+            )
         if self._reader_index >= len(all_readers):
             raise SmartcardError(
                 f"reader index {self._reader_index} out of range (have {len(all_readers)})"
@@ -107,9 +139,9 @@ class CCIDReader:
         self._connection = self._reader.createConnection()
         try:
             self._connection.connect()
-        except self._no_card as exc:
+        except self._sc.no_card_exc as exc:
             raise SmartcardError("no card present in reader") from exc
-        except self._conn_err as exc:
+        except self._sc.conn_exc as exc:
             raise SmartcardError(f"connection failed: {exc}") from exc
         return str(self._reader)
 

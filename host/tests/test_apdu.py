@@ -23,6 +23,57 @@ def test_command_encode_with_data_and_le() -> None:
     assert cmd.encode() == bytes([0x00, 0xA4, 0x04, 0x00, 0x02, 0x01, 0x02, 0x00])
 
 
+def test_from_bytes_case1_header_only() -> None:
+    cmd = CommandAPDU.from_bytes(bytes([0x00, 0xCA, 0x9F, 0x17]))
+    assert (cmd.cla, cmd.ins, cmd.p1, cmd.p2) == (0x00, 0xCA, 0x9F, 0x17)
+    assert cmd.data == b""
+    assert cmd.le is None
+
+
+def test_from_bytes_case2_le_only() -> None:
+    cmd = CommandAPDU.from_bytes(bytes([0x00, 0xB0, 0x00, 0x00, 0x10]))
+    assert cmd.le == 0x10
+    assert cmd.data == b""
+
+
+def test_from_bytes_case3_data_no_le() -> None:
+    raw = bytes([0x00, 0xA4, 0x04, 0x00, 0x02, 0xAA, 0xBB])
+    cmd = CommandAPDU.from_bytes(raw)
+    assert cmd.data == b"\xaa\xbb"
+    assert cmd.le is None
+
+
+def test_from_bytes_case4_data_and_le() -> None:
+    raw = bytes([0x00, 0xA4, 0x04, 0x00, 0x02, 0xAA, 0xBB, 0x00])
+    cmd = CommandAPDU.from_bytes(raw)
+    assert cmd.data == b"\xaa\xbb"
+    assert cmd.le == 0x00
+
+
+def test_from_bytes_round_trip_select_aid() -> None:
+    original = select_aid(PSE_AID)
+    encoded = original.encode()
+    parsed = CommandAPDU.from_bytes(encoded)
+    assert parsed.encode() == encoded
+
+
+def test_from_bytes_rejects_short_header() -> None:
+    with pytest.raises(ValueError):
+        CommandAPDU.from_bytes(bytes([0x00, 0xA4, 0x04]))
+
+
+def test_from_bytes_rejects_truncated_data() -> None:
+    raw = bytes([0x00, 0xA4, 0x04, 0x00, 0x05, 0xAA, 0xBB])
+    with pytest.raises(ValueError):
+        CommandAPDU.from_bytes(raw)
+
+
+def test_from_bytes_rejects_trailing_garbage() -> None:
+    raw = bytes([0x00, 0xA4, 0x04, 0x00, 0x02, 0xAA, 0xBB, 0x00, 0x00])
+    with pytest.raises(ValueError):
+        CommandAPDU.from_bytes(raw)
+
+
 def test_select_aid_for_ppse() -> None:
     cmd = select_aid(PPSE_AID)
     encoded = cmd.encode()

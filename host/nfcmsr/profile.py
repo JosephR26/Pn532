@@ -1,4 +1,4 @@
-"""Card profile data model — mirrors shared/schemas/card_profile.schema.json."""
+"""Card profile data model — mirrors host/nfcmsr/schemas/card_profile.schema.json."""
 
 from __future__ import annotations
 
@@ -6,13 +6,12 @@ import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = "1.0.0"
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SCHEMA_PATH = REPO_ROOT / "shared" / "schemas" / "card_profile.schema.json"
+SCHEMA_RESOURCE = "schemas/card_profile.schema.json"
 
 
 @dataclass
@@ -216,7 +215,8 @@ def _now_iso() -> str:
 
 
 def load_schema() -> dict[str, Any]:
-    return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    resource = files("nfcmsr").joinpath(SCHEMA_RESOURCE)
+    return json.loads(resource.read_text(encoding="utf-8"))
 
 
 def validate(profile: CardProfile | dict[str, Any]) -> list[str]:
