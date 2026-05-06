@@ -55,7 +55,7 @@ sudo apt install libnfc-bin libnfc-dev mfoc mfcuk pcscd pcsc-lite swig
 
 ### System dependencies (Windows 11)
 
-- **ESP32:** install Silicon Labs CP210x VCP driver. Device shows up as `COMx`.
+- **ESP32:** install the WCH CH341SER driver (the DevKitC variant in this project uses a CH340 USB-to-UART bridge). Device shows up as `COMx`.
 - **MSR605X:** the typical clone is USB-CDC; Windows usually picks it up automatically as `COMy`. If not, install the vendor driver.
 - **CCID smartcard reader:** Windows includes WinSCard; no driver install needed for standards-compliant readers. Verify with `Get-Service SCardSvr`.
 - **libnfc / mfcuk / mfoc / mfoc-hardnested:** install inside WSL2 and forward USB devices with `usbipd-win`.

@@ -44,7 +44,7 @@ Avoid using GPIO 0/2/5/12/15 for peripherals — they are boot-strap pins.
   Libraries: `elechouse/PN532` (HSU), `adafruit/Adafruit SSD1306` + `Adafruit GFX`, `bblanchon/ArduinoJson` (v6), `thomasfredericks/Bounce2`.
 - **Host:** Python 3.11+, `click`, `pyserial`, `jsonschema`, `rich`, `pytest`. Optional extra: `pyscard` for the contact smartcard leg.
 - **System (Linux):** `libnfc-bin`, `libnfc-dev`, `mfoc`, `mfcuk`, `pcscd`, `pcsc-lite`; `mfoc-hardnested` from source.
-- **System (Windows 11):** Silicon Labs CP210x VCP driver for the ESP32, vendor driver for MSR605X (typically VCP — appears as a COM port), Windows built-in WinSCard service for the CCID smartcard reader. libnfc/mfcuk/mfoc require WSL2 with `usbipd-win` for USB passthrough.
+- **System (Windows 11):** WCH CH341SER driver for the ESP32 (DevKitC variant in this project uses a CH340 USB-to-UART bridge), vendor driver for MSR605X (typically VCP — appears as a COM port), Windows built-in WinSCard service for the CCID smartcard reader. libnfc/mfcuk/mfoc require WSL2 with `usbipd-win` for USB passthrough.
 
 ## Build / test commands
 

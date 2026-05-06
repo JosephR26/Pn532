@@ -8,26 +8,37 @@ libnfc-based key recovery (which has no native Windows build worth using).
 
 | Device                          | Driver                                              | Appears as |
 |---------------------------------|-----------------------------------------------------|------------|
-| ESP32 DevKitC-32 (CP2102)       | Silicon Labs CP210x VCP                             | `COMx`     |
-| ESP32 DevKitC-32 (CH340 clone)  | WCH CH341SER                                        | `COMx`     |
+| ESP32 DevKitC-32 (CH340)        | WCH CH341SER (this project's board)                 | `COMx`     |
+| ESP32 DevKitC-32 (CP2102 alt)   | Silicon Labs CP210x VCP                             | `COMx`     |
 | MSR605X (typical clone)         | USB-CDC (Windows-native) or vendor pack             | `COMy`     |
 | STW-027 / generic CCID reader   | Windows WinSCard service (no driver install)        | PC/SC reader |
 
 Find COM port assignments in **Device Manager → Ports (COM & LPT)**.
 
-## Silicon Labs CP210x (ESP32)
+## WCH CH340 (ESP32)
 
-1. Plug in the ESP32. Device Manager will show "CP2102 USB to UART Bridge"
-   under "Other devices" with a yellow exclamation mark if the driver is
-   missing.
-2. Download the latest **CP210x Universal Windows Driver** from Silicon Labs.
-3. Install. After reconnect, the ESP32 enumerates as `COMx` (Device Manager
-   will tell you which `x`).
+The DevKitC-32 board in this project uses a CH340 USB-to-UART bridge, so the
+WCH driver is the one you want. (If you later swap to a CP2102-based board,
+follow the Silicon Labs instructions below.)
+
+1. Plug in the ESP32. Device Manager will show "USB-Serial CH340" or
+   "USB2.0-Serial" under "Other devices" with a yellow exclamation mark if
+   the driver is missing.
+2. Download the latest **CH341SER** package from WCH (`wch.cn` →
+   "Downloads" → "Driver"). The same driver covers CH340 / CH341 chips.
+3. Run `SETUP.EXE` and click **Install**. After the device reconnects, it
+   enumerates as `COMx` (check Device Manager → Ports (COM & LPT)).
 4. Test in PowerShell:
    ```
    pio device list
    nfcmsr nfc read --port COM5    # adjust to your port
    ```
+
+### Silicon Labs CP210x (alternative DevKitC variants)
+
+If you have a different DevKitC variant with a CP2102 chip, install the
+**CP210x Universal Windows Driver** from Silicon Labs instead. Same `COMx`
+enumeration and same `nfcmsr` usage.
 
 ## MSR605X
 
