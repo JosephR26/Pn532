@@ -106,6 +106,41 @@ class MagstripeData:
 
 
 @dataclass
+class Iso7816Data:
+    reader_name: str | None = None
+    atr: str | None = None
+    atr_decoded: dict[str, Any] = field(default_factory=dict)
+    applications: list[dict[str, Any]] = field(default_factory=list)
+    apdu_log: list[dict[str, Any]] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        if self.reader_name:
+            out["reader_name"] = self.reader_name
+        if self.atr:
+            out["atr"] = self.atr
+        if self.atr_decoded:
+            out["atr_decoded"] = self.atr_decoded
+        if self.applications:
+            out["applications"] = self.applications
+        if self.apdu_log:
+            out["apdu_log"] = self.apdu_log
+        return out
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> Iso7816Data:
+        if not data:
+            return cls()
+        return cls(
+            reader_name=data.get("reader_name"),
+            atr=data.get("atr"),
+            atr_decoded=dict(data.get("atr_decoded", {})),
+            applications=list(data.get("applications", [])),
+            apdu_log=list(data.get("apdu_log", [])),
+        )
+
+
+@dataclass
 class CardProfile:
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     captured_at: str = field(default_factory=lambda: _now_iso())
@@ -116,6 +151,7 @@ class CardProfile:
     notes: str | None = None
     nfc: NfcData = field(default_factory=NfcData)
     magstripe: MagstripeData = field(default_factory=MagstripeData)
+    iso7816: Iso7816Data = field(default_factory=Iso7816Data)
     emv: dict[str, Any] = field(default_factory=dict)
     attacks: list[dict[str, Any]] = field(default_factory=list)
 
@@ -138,6 +174,9 @@ class CardProfile:
         mag = self.magstripe.to_dict()
         if mag:
             out["magstripe"] = mag
+        iso = self.iso7816.to_dict()
+        if iso:
+            out["iso7816"] = iso
         if self.emv:
             out["emv"] = self.emv
         if self.attacks:
@@ -156,6 +195,7 @@ class CardProfile:
             notes=data.get("notes"),
             nfc=NfcData.from_dict(data.get("nfc")),
             magstripe=MagstripeData.from_dict(data.get("magstripe")),
+            iso7816=Iso7816Data.from_dict(data.get("iso7816")),
             emv=dict(data.get("emv", {})),
             attacks=list(data.get("attacks", [])),
         )

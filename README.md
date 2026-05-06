@@ -1,11 +1,14 @@
-# PN532 + MSR605X Pentesting Toolkit
+# PN532 + MSR605X + Smartcard Pentesting Toolkit
 
-A two-part NFC/RFID + magstripe pentesting rig.
+A three-leg NFC/RFID + magstripe + contact-smartcard pentesting rig.
 
-- **Handheld field unit:** ESP32 DevKitC-32 + PN532 + SSD1306 0.96" OLED + 5-way nav switch. Standalone menu-driven scan/dump/clone, plus tethered JSON-over-USB mode for desk work.
-- **Laptop host:** Python CLI (`nfcmsr`) that drives an MSR605X magstripe reader/writer over USB serial, wraps `libnfc` / `mfcuk` / `mfoc` / `mfoc-hardnested`, and speaks to the tethered handheld.
+- **Handheld field unit:** ESP32 DevKitC-32 + PN532 + SSD1306 0.96" OLED + 5-way nav switch. Standalone menu-driven scan/dump/clone, plus tethered JSON-over-USB mode for desk work. Covers 13.56 MHz contactless.
+- **Laptop magstripe leg:** MSR605X USB reader/writer for ISO 7811 Tracks 1/2/3 (hi-co + lo-co).
+- **Laptop contact smartcard leg:** USB CCID reader (e.g. STW-027) over PC/SC for ISO 7816: contact EMV, PIV, OpenPGP, GIDS, JavaCard, SIM (with adapter), and the contact side of dual-interface cards.
 
-Both halves read and write a shared `card_profile.json` record, so hybrid NFC+magstripe cards can be captured, diffed, and cloned as a single unit.
+The Python CLI (`nfcmsr`) ties all three together. A shared `card_profile.json` schema holds NFC + magstripe + contact data for one physical card, so hybrid cards can be captured, diffed, and cloned as a single unit.
+
+Primary target host OS is **Windows 11** — see `docs/windows.md`. Linux works equally well.
 
 ## Repo layout
 
@@ -31,17 +34,33 @@ pio device monitor      # serial monitor at 115200 baud
 
 ```
 cd host
-python -m venv .venv && source .venv/bin/activate
-pip install -e .
+python -m venv .venv
+# Linux/macOS:
+source .venv/bin/activate
+# Windows PowerShell:
+.\.venv\Scripts\Activate.ps1
+
+pip install -e ".[smartcard]"   # smartcard extra pulls in pyscard
 nfcmsr --help
 ```
+
+`pyscard` is optional — install only if you want the contact smartcard leg. The MSR605X and PN532 paths work without it.
 
 ### System dependencies (Linux)
 
 ```
-sudo apt install libnfc-bin libnfc-dev mfoc mfcuk
+sudo apt install libnfc-bin libnfc-dev mfoc mfcuk pcscd pcsc-lite swig
 # mfoc-hardnested: build from https://github.com/nfc-tools/mfoc-hardnested
 ```
+
+### System dependencies (Windows 11)
+
+- **ESP32:** install Silicon Labs CP210x VCP driver. Device shows up as `COMx`.
+- **MSR605X:** the typical clone is USB-CDC; Windows usually picks it up automatically as `COMy`. If not, install the vendor driver.
+- **CCID smartcard reader:** Windows includes WinSCard; no driver install needed for standards-compliant readers. Verify with `Get-Service SCardSvr`.
+- **libnfc / mfcuk / mfoc / mfoc-hardnested:** install inside WSL2 and forward USB devices with `usbipd-win`.
+
+See `docs/windows.md` for full setup steps.
 
 ## Status
 

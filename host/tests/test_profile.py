@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from nfcmsr.profile import CardProfile, MagstripeData, NfcData, diff, validate
+from nfcmsr.profile import CardProfile, Iso7816Data, MagstripeData, NfcData, diff, validate
 
 
 def test_roundtrip_empty_profile(tmp_path: Path) -> None:
@@ -61,6 +61,26 @@ def test_diff_detects_uid_change() -> None:
 
     changes = diff(a, b)
     assert any("nfc.uid" in c for c in changes)
+
+
+def test_profile_with_iso7816_validates() -> None:
+    profile = CardProfile(source="host")
+    profile.iso7816 = Iso7816Data(
+        reader_name="STW Smart Card Reader 0",
+        atr="3b00",
+        atr_decoded={"convention": "direct", "ts": "3b", "t0": "00", "historical_bytes_hex": "", "protocols": ["T=0"]},
+        applications=[{"aid": "a0000000031010", "label": "Visa Credit/Debit"}],
+        apdu_log=[{"command_hex": "00a4040007a0000000031010", "response_hex": "6f1a", "sw1": "90", "sw2": "00"}],
+    )
+    errors = validate(profile)
+    assert errors == []
+
+
+def test_iso7816_rejects_bad_atr() -> None:
+    profile = CardProfile(source="host")
+    profile.iso7816 = Iso7816Data(atr="not-hex!")
+    errors = validate(profile)
+    assert any("atr" in e.lower() for e in errors)
 
 
 def test_diff_detects_sector_change() -> None:

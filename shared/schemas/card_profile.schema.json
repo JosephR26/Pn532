@@ -143,9 +143,10 @@
     },
     "emv": {
       "type": "object",
-      "description": "Contactless EMV track-equivalent data. Populated only with explicit authorised-testing flag.",
+      "description": "EMV track-equivalent data. May be sourced from contactless (PN532) or contact (CCID smartcard reader). Populated only with explicit authorised-testing flag.",
       "additionalProperties": false,
       "properties": {
+        "interface": {"type": "string", "enum": ["contactless", "contact"]},
         "pse_aids": {
           "type": "array",
           "items": {"type": "string", "pattern": "^[0-9a-fA-F]+$"}
@@ -155,6 +156,57 @@
         "pan_masked": {"type": "string"},
         "cardholder_name": {"type": "string"},
         "expiry_yymm": {"type": "string", "pattern": "^[0-9]{4}$"}
+      }
+    },
+    "iso7816": {
+      "type": "object",
+      "description": "Contact smartcard data captured via a PC/SC CCID reader. Covers PIV, OpenPGP, GIDS, JavaCard, SIM (with adapter), and the contact side of dual-interface cards.",
+      "additionalProperties": false,
+      "properties": {
+        "reader_name": {"type": "string"},
+        "atr": {"type": "string", "pattern": "^[0-9a-fA-F]+$"},
+        "atr_decoded": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "convention": {"type": "string", "enum": ["direct", "inverse"]},
+            "ts": {"type": "string", "pattern": "^[0-9a-fA-F]{2}$"},
+            "t0": {"type": "string", "pattern": "^[0-9a-fA-F]{2}$"},
+            "historical_bytes_hex": {"type": "string", "pattern": "^[0-9a-fA-F]*$"},
+            "protocols": {
+              "type": "array",
+              "items": {"type": "string", "enum": ["T=0", "T=1", "T=15"]}
+            }
+          }
+        },
+        "applications": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["aid"],
+            "additionalProperties": false,
+            "properties": {
+              "aid": {"type": "string", "pattern": "^[0-9a-fA-F]+$"},
+              "label": {"type": "string"},
+              "fci_hex": {"type": "string", "pattern": "^[0-9a-fA-F]*$"}
+            }
+          }
+        },
+        "apdu_log": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["command_hex", "response_hex"],
+            "additionalProperties": false,
+            "properties": {
+              "command_hex": {"type": "string", "pattern": "^[0-9a-fA-F]+$"},
+              "response_hex": {"type": "string", "pattern": "^[0-9a-fA-F]*$"},
+              "sw1": {"type": "string", "pattern": "^[0-9a-fA-F]{2}$"},
+              "sw2": {"type": "string", "pattern": "^[0-9a-fA-F]{2}$"},
+              "annotation": {"type": "string"}
+            }
+          }
+        }
       }
     },
     "attacks": {

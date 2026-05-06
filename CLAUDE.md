@@ -4,12 +4,17 @@ Project-level context for Claude Code sessions working on this repository.
 
 ## What this project is
 
-A hardware-based NFC/RFID + magstripe pentesting toolkit. Two halves:
+A hardware-based NFC/RFID + magstripe + contact smartcard pentesting toolkit.
 
-1. **Handheld field unit** — ESP32 DevKitC-32 (30-pin WROOM-32) + PN532, SSD1306 0.96" 128×64 I²C OLED, 5-way nav switch, external RESET + BOOT buttons. Standalone menu-driven; also speaks JSON over USB serial when tethered.
-2. **Laptop host** — Python CLI `nfcmsr` that drives an MSR605X USB-serial magstripe reader/writer, wraps libnfc attack tooling, and orchestrates capture/clone workflows.
+Three legs:
 
-Integration seam: a single `shared/schemas/card_profile.schema.json` record holds NFC, magstripe, and optional EMV data for one physical card. Both firmware and host produce/consume this JSON.
+1. **Handheld field unit** — ESP32 DevKitC-32 (30-pin WROOM-32) + PN532, SSD1306 0.96" 128×64 I²C OLED, 5-way nav switch, external RESET + BOOT buttons. Covers 13.56 MHz NFC contactless. Standalone menu-driven; also speaks JSON over USB serial when tethered.
+2. **Laptop magstripe leg** — MSR605X USB reader/writer, ISO 7811 Tracks 1/2/3, hi-co + lo-co.
+3. **Laptop contact smartcard leg** — USB CCID reader (e.g. STW-027), driven via PC/SC. Covers ISO 7816 contact: contact EMV, PIV, OpenPGP, GIDS, JavaCard, SIM (with adapter), and the contact side of dual-interface cards.
+
+The Python CLI `nfcmsr` orchestrates all three. Integration seam: a single `shared/schemas/card_profile.schema.json` record holds `nfc`, `magstripe`, `iso7816`, and optional `emv` blocks for one physical card. Both firmware and host produce/consume this JSON.
+
+**Host OS:** Windows 11 is the primary target (per the user's setup). Linux works equally well; macOS untested. Driver/setup details for Windows live in `docs/windows.md`.
 
 ## Hardware pinout (ESP32 DevKitC-32)
 
@@ -37,8 +42,9 @@ Avoid using GPIO 0/2/5/12/15 for peripherals — they are boot-strap pins.
 
 - **Firmware:** PlatformIO, Arduino framework, `board = esp32dev`.
   Libraries: `elechouse/PN532` (HSU), `adafruit/Adafruit SSD1306` + `Adafruit GFX`, `bblanchon/ArduinoJson` (v6), `thomasfredericks/Bounce2`.
-- **Host:** Python 3.11+, `click`, `pyserial`, `jsonschema`, `rich`, `pytest`.
-- **System:** `libnfc-bin`, `libnfc-dev`, `mfoc`, `mfcuk`; `mfoc-hardnested` from source.
+- **Host:** Python 3.11+, `click`, `pyserial`, `jsonschema`, `rich`, `pytest`. Optional extra: `pyscard` for the contact smartcard leg.
+- **System (Linux):** `libnfc-bin`, `libnfc-dev`, `mfoc`, `mfcuk`, `pcscd`, `pcsc-lite`; `mfoc-hardnested` from source.
+- **System (Windows 11):** Silicon Labs CP210x VCP driver for the ESP32, vendor driver for MSR605X (typically VCP — appears as a COM port), Windows built-in WinSCard service for the CCID smartcard reader. libnfc/mfcuk/mfoc require WSL2 with `usbipd-win` for USB passthrough.
 
 ## Build / test commands
 
@@ -56,7 +62,7 @@ cd host && pytest
 ## Code conventions
 
 - **Firmware:** Arduino `.cpp` + header pairs, avoid C++ features that bloat the binary. Use `ArduinoJson` `StaticJsonDocument` with sized buffers — no dynamic allocation in the hot path. Keep the UI non-blocking (state-machine loop, no `delay()` in `loop()`).
-- **Host:** Type hints required on public functions. `click` for CLI, `rich` for output, `pyserial` for all serial I/O. Tests use mocks for hardware — no test should require a physical card or MSR605X.
+- **Host:** Type hints required on public functions. `click` for CLI, `rich` for output, `pyserial` for serial I/O, PC/SC via `pyscard` (lazy-imported). Tests use mocks/pure-Python for hardware — no test should require a physical card, MSR605X, or smartcard reader. Protocol logic (APDU encode/decode, ATR parse, MSR605X frame encode/parse, Track 2 LRC) lives in pure-Python modules so it stays testable in CI.
 - No comments unless the WHY is non-obvious. Self-documenting names over commentary.
 
 ## What's in scope / out of scope
@@ -65,7 +71,8 @@ cd host && pytest
 - MIFARE Classic / Ultralight / DESFire read and (where possible) write.
 - ISO 14443-A/B and FeliCa reader-mode operations.
 - MSR605X track 1/2/3 read/write (hi-co + lo-co).
-- Hybrid card cloning (NFC + magstripe) from a single profile.
+- Contact ISO 7816 via PC/SC: ATR capture, AID enumeration, raw APDU, contact-EMV / PIV / OpenPGP read flows.
+- Hybrid card capture (NFC + magstripe + contact) into a single profile.
 - Key recovery wrappers around libnfc tooling.
 - Magic-card (Gen1a/Gen2/CUID) UID + block 0 write.
 - NFC relay over Wi-Fi between two handhelds (v3).

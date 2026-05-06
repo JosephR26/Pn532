@@ -71,6 +71,10 @@ Auto-reset via USB-UART DTR/RTS normally works on the DevKitC, so `pio run -t up
 - The OLED and PN532 share the 3V3 rail; add a 10µF bulk cap near the PN532 if you see brown-outs on card presentation.
 - Nav-switch common goes to GND. Each direction line is pulled up (external 10k for GPIO34/35; internal for the others) and reads LOW when pressed.
 
+## Host platform (Windows 11)
+
+The handheld talks to the laptop over USB serial. On Windows 11 it enumerates as a `COMx` port after the Silicon Labs CP210x VCP driver is installed. The MSR605X and CCID smartcard reader add their own ports (`COMy`) and PC/SC reader entries respectively. See `docs/windows.md` for full driver and WSL2 instructions.
+
 ## Power
 
 - **Tethered:** USB via the DevKitC's on-board UART bridge. 500 mA from the host is enough for normal operation (PN532 peaks ~150 mA on card read).

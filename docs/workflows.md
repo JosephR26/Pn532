@@ -17,11 +17,31 @@ Standalone variant: on the handheld menu, pick **Scan card**. UID and tag type r
 ## 2. Magstripe capture (v1)
 
 1. Plug MSR605X into the laptop.
-2. `nfcmsr msr read --into profiles/unknown.json` (merges into existing NFC profile) or `--save profiles/mag-only.json` for a fresh record.
+2. `nfcmsr msr read --port COM6 --into profiles/unknown.json` (Windows) or `--port /dev/ttyACM0` (Linux). Use `--save` for a fresh profile.
 3. Swipe the card.
 4. CLI parses Tracks 1/2/3, verifies Track 2 LRC, and stores the result.
 
-## 3. MIFARE Classic key recovery (v2)
+## 3. Contact smartcard snapshot (v1)
+
+1. Plug the CCID reader (e.g. STW-027) into the laptop and insert a card.
+2. List readers: `nfcmsr smartcard readers`.
+3. Capture: `nfcmsr smartcard info --reader 0 --into profiles/unknown.json`.
+4. CLI records ATR + ISO 7816-3 protocol(s) + a sweep of well-known AIDs (PSE, PPSE, Visa, Mastercard, PIV, OpenPGP, etc.) and notes which ones the card responds to.
+
+Raw APDU when you want to drive the card by hand:
+
+```
+nfcmsr smartcard apdu 00A4040007A0000000031010
+#                     │  │  │  │  │  │
+#                     │  │  │  │  │  └─ AID (Visa)
+#                     │  │  │  │  └──── Lc
+#                     │  │  │  └─────── P2
+#                     │  │  └────────── P1 (SELECT by name)
+#                     │  └───────────── INS (SELECT)
+#                     └──────────────── CLA
+```
+
+## 5. MIFARE Classic key recovery (v2)
 
 Fastest path when at least one key is default:
 
@@ -38,23 +58,25 @@ nfcmsr attack hardnested --profile profiles/target.json  # statistical, offline
 
 Recovered keys are merged into the profile's `nfc.sectors[].key_a/key_b` with `key_source` set appropriately. Full sector dumps are pulled in the same run.
 
-## 4. Hybrid clone — NFC + magstripe (v2)
+## 6. Hybrid clone — NFC + magstripe + contact (v2)
 
-For cards that carry correlated data on both media (older hotel keys, some legacy access badges).
+For cards that carry correlated data across media (older hotel keys, some legacy access badges, dual-interface EMV).
 
 ```
-# 1. Capture source
-nfcmsr nfc read  --save profiles/src.json
-nfcmsr msr read  --into profiles/src.json
+# 1. Capture source — all three legs
+nfcmsr nfc read         --save profiles/src.json
+nfcmsr msr read         --into profiles/src.json
+nfcmsr smartcard info   --into profiles/src.json
 nfcmsr attack mfoc --profile profiles/src.json   # if needed for full NFC dump
 
 # 2. Write target
 nfcmsr clone hybrid --from profiles/src.json
 #  ├── writes NFC: prompts for magic card (Gen1a/Gen2/CUID) on the handheld
 #  └── writes magstripe: prompts for blank on the MSR605X
+#  (contact-EMV write is out of scope — chip personalisation requires issuer keys)
 ```
 
-## 5. Before/after audit (v2)
+## 7. Before/after audit (v2)
 
 ```
 nfcmsr nfc read --save profiles/before.json
@@ -65,15 +87,21 @@ nfcmsr profile diff profiles/before.json profiles/after.json
 
 Highlights changed sectors, UID immutability violations, and key-source regressions.
 
-## 6. Contactless EMV read (v2, authorisation-gated)
+## 8. EMV read — contact or contactless (v2, authorisation-gated)
 
 ```
-nfcmsr emv read --i-have-written-authorization --profile profiles/payment-test.json
+# contactless via PN532
+nfcmsr emv read --interface contactless --i-have-written-authorization \
+                --profile profiles/payment-test.json
+
+# contact via CCID smartcard reader
+nfcmsr emv read --interface contact --reader 0 --i-have-written-authorization \
+                --profile profiles/payment-test.json
 ```
 
-Pulls PPSE, enumerates AIDs, selects the preferred application, issues GPO, reads the SFI records, extracts track-equivalent data. PAN is masked in the persisted profile unless `--store-pan` is also supplied (refused without authorisation flag).
+Pulls PPSE (contactless) or PSE (contact), enumerates AIDs, selects the preferred application, issues GPO, reads the SFI records, extracts track-equivalent data. PAN is masked in the persisted profile unless `--store-pan` is also supplied (refused without authorisation flag). Reading both interfaces and diffing them is a useful test for dual-interface card consistency.
 
-## 7. NFC relay over Wi-Fi (v3)
+## 9. NFC relay over Wi-Fi (v3)
 
 Two handhelds — one near the genuine card (target), one near the reader (initiator). Relay ISO 14443-4 APDUs over TCP, with the PN532's WTX injection keeping strict readers happy.
 

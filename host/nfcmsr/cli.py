@@ -11,9 +11,10 @@ from rich.console import Console
 from rich.table import Table
 
 from . import __version__
+from .apdu import CommandAPDU, ResponseAPDU
 from .msr605x import STATUS_OK, TrackData, msr_device, track2_lrc
 from .pn532_serial import FirmwareError, firmware
-from .profile import CardProfile, MagstripeData, NfcData, validate
+from .profile import CardProfile, Iso7816Data, MagstripeData, NfcData, validate
 
 console = Console()
 
@@ -152,6 +153,116 @@ def msr_write(port: str, from_path: Path, coercivity: str) -> None:
 
 
 @main.group()
+def smartcard() -> None:
+    """Contact smartcard operations via a PC/SC CCID reader (e.g. STW-027)."""
+
+
+@smartcard.command("readers")
+def smartcard_readers() -> None:
+    """List detected PC/SC readers."""
+    try:
+        from .smartcard import CCIDReader, SmartcardError
+    except ImportError as exc:
+        console.print(f"[red]{exc}[/red]")
+        sys.exit(1)
+    try:
+        reader = CCIDReader()
+        names = reader.list_readers()
+    except SmartcardError as exc:
+        console.print(f"[red]{exc}[/red]")
+        sys.exit(1)
+    if not names:
+        console.print("[yellow]No PC/SC readers found.[/yellow]")
+        sys.exit(1)
+    for i, name in enumerate(names):
+        console.print(f"[{i}] {name}")
+
+
+@smartcard.command("info")
+@click.option("--reader", "reader_index", default=0, show_default=True, type=int,
+              help="PC/SC reader index (see `nfcmsr smartcard readers`).")
+@click.option("--save", "save_path", type=click.Path(dir_okay=False, path_type=Path))
+@click.option("--into", "into_path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--no-probe", is_flag=True, help="Skip the AID probing sweep.")
+def smartcard_info(reader_index: int, save_path: Path | None, into_path: Path | None, no_probe: bool) -> None:
+    """Capture ATR + a sweep of well-known AIDs (PSE, PPSE, Visa, MC, PIV, OpenPGP, ...)."""
+    console.print(f"[dim]{AUTH_BANNER}[/dim]")
+    try:
+        from .smartcard import SmartcardError, ccid_reader, snapshot_card
+    except ImportError as exc:
+        console.print(f"[red]{exc}[/red]")
+        sys.exit(1)
+
+    try:
+        with ccid_reader(reader_index=reader_index) as dev:
+            reader_name = dev._reader and str(dev._reader) or "?"  # noqa: SLF001
+            snap = snapshot_card(dev, probe_emv=not no_probe)
+            snap.reader_name = reader_name
+    except Exception as exc:  # SmartcardError or pyscard exceptions
+        console.print(f"[red]{exc}[/red]")
+        sys.exit(1)
+
+    iso = snap.to_iso7816_dict()
+
+    if into_path:
+        profile = CardProfile.load(into_path)
+    else:
+        profile = CardProfile(source="host")
+    profile.iso7816 = Iso7816Data.from_dict(iso)
+
+    _print_iso7816(profile.iso7816)
+
+    target = save_path or into_path
+    if target:
+        profile.save(target)
+        console.print(f"[green]Saved profile to {target}[/green]")
+
+
+@smartcard.command("apdu")
+@click.argument("hex_apdu")
+@click.option("--reader", "reader_index", default=0, show_default=True, type=int)
+def smartcard_apdu(hex_apdu: str, reader_index: int) -> None:
+    """Send a raw command APDU (hex) and print the response."""
+    console.print(f"[dim]{AUTH_BANNER}[/dim]")
+    try:
+        from .smartcard import SmartcardError, ccid_reader
+    except ImportError as exc:
+        console.print(f"[red]{exc}[/red]")
+        sys.exit(1)
+
+    raw = bytes.fromhex(hex_apdu.replace(" ", ""))
+    if len(raw) < 4:
+        console.print("[red]APDU must be at least 4 bytes (CLA INS P1 P2).[/red]")
+        sys.exit(1)
+
+    cla, ins, p1, p2 = raw[0], raw[1], raw[2], raw[3]
+    body = raw[4:]
+    data = b""
+    le: int | None = None
+    if len(body) == 1:
+        le = body[0]
+    elif len(body) >= 2:
+        lc = body[0]
+        if 1 + lc > len(body):
+            console.print("[red]Lc exceeds remaining bytes.[/red]")
+            sys.exit(1)
+        data = body[1 : 1 + lc]
+        if len(body) > 1 + lc:
+            le = body[1 + lc]
+
+    cmd = CommandAPDU(cla=cla, ins=ins, p1=p1, p2=p2, data=data, le=le)
+    try:
+        with ccid_reader(reader_index=reader_index) as dev:
+            resp = dev.transmit(cmd)
+    except Exception as exc:
+        console.print(f"[red]{exc}[/red]")
+        sys.exit(1)
+
+    console.print(f"data: {resp.data.hex()}")
+    console.print(f"sw  : {resp.sw1:02x} {resp.sw2:02x} ({'ok' if resp.ok else 'not 9000'})")
+
+
+@main.group()
 def profile() -> None:
     """Card profile utilities."""
 
@@ -232,7 +343,40 @@ def _print_profile(prof: CardProfile) -> None:
         if mag.track2_lrc_ok is not None:
             table.add_row("magstripe.track2_lrc_ok", str(mag.track2_lrc_ok))
 
+    iso = prof.iso7816
+    if iso.atr:
+        table.add_row("iso7816.reader", iso.reader_name or "?")
+        table.add_row("iso7816.atr", iso.atr)
+        protocols = iso.atr_decoded.get("protocols") if iso.atr_decoded else None
+        if protocols:
+            table.add_row("iso7816.protocols", ", ".join(protocols))
+        if iso.applications:
+            table.add_row("iso7816.apps", f"{len(iso.applications)} found")
+
     console.print(table)
+
+
+def _print_iso7816(iso: Iso7816Data) -> None:
+    table = Table(title="Smartcard snapshot", show_header=False)
+    table.add_column("field", style="bold")
+    table.add_column("value")
+    table.add_row("reader", iso.reader_name or "?")
+    table.add_row("ATR", iso.atr or "?")
+    if iso.atr_decoded:
+        protocols = iso.atr_decoded.get("protocols") or []
+        if protocols:
+            table.add_row("protocols", ", ".join(protocols))
+        hist = iso.atr_decoded.get("historical_bytes_hex")
+        if hist:
+            table.add_row("historical_bytes", hist)
+    console.print(table)
+    if iso.applications:
+        apps = Table(title="Detected applications")
+        apps.add_column("AID")
+        apps.add_column("label")
+        for entry in iso.applications:
+            apps.add_row(entry.get("aid", ""), entry.get("label", ""))
+        console.print(apps)
 
 
 if __name__ == "__main__":
